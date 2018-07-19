@@ -21,7 +21,8 @@ object UnsafeTerminal {
     TreeCompleter.node("rm")
   )
 
-  def main(args: Array[String]): Unit = {
+//  def main(args: Array[String]): Unit = {
+  def main(): Unit = {
     val terminal = TerminalBuilder.builder()
       .system(true)
       .build()

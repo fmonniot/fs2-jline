@@ -11,27 +11,12 @@ import fs2.StreamApp.ExitCode
 import org.jline.reader.LineReader
 
 
-// TODO Use package object instead
 object Fs2JLine {
-  // TODO Offer a simpler constructor which doesn't manage the prompt at all
-  def apply[F[_] : Concurrent, C, S](availableCommands: NonEmptyList[Command[C]])
-                                    (state: F[S], prompt: F[Prompt])
-                                    (f: (C, S) => F[(Prompt, S)]): Stream[F, ExitCode] =
-    new Fs2JLine[F, C, S] {
-      override val commands = availableCommands
-
-      override val initialState = state
-
-      override def onCommand(c: C, s: S): F[(Prompt, S)] = f(c, s)
-
-      override val initialPrompt = prompt
-    }.stream
-
   // Might or might not make sense
   type Prompt = String
 }
 
-abstract class Fs2JLine[F[_] : Concurrent, C, S] {
+private[jline] abstract class Fs2JLine[F[_] : Concurrent, C, S] {
 
   // Arguments
 

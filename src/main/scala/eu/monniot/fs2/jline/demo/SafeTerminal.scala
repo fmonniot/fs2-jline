@@ -4,7 +4,6 @@ import cats.data.NonEmptyList
 import cats.effect.Sync
 import cats.implicits._
 import com.monovore.decline.{Command, Opts}
-import eu.monniot.fs2.jline.Fs2JLine.Prompt
 
 
 object SafeTerminal {
@@ -39,7 +38,7 @@ object SafeTerminal {
 
   type State = Int
 
-  def apply[F[_]](c: Cmd, state: State)(implicit F: Sync[F]): F[(Prompt, State)] = c match {
+  def apply[F[_]](c: Cmd, state: State)(implicit F: Sync[F]): F[State] = c match {
     case Ls(long, human) =>
 
       val txt = if(long) "Number of successful command ran (minus this one): " else ""
@@ -47,17 +46,17 @@ object SafeTerminal {
 
       F.delay {
         println(s"$txt$n time${if(state > 0) "s" else ""}")
-      } >> F.pure((">", state + 1))
+      } >> F.pure(state + 1)
 
     case Add =>
       F.delay {
         println("Adding stuff")
-      } >> F.pure((">", state + 1))
+      } >> F.pure(state + 1)
 
     case Rm =>
       F.delay {
         println("Removing stuff")
-      } >> F.pure((">", state + 1))
+      } >> F.pure(state + 1)
   }
 
   def numberToEnglish(num: Int): String = {

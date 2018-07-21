@@ -16,9 +16,7 @@ private[jline] object builtins {
 
   val commands: NonEmptyList[Command[BuiltInCommand]] = NonEmptyList.of(
     Command("quit", "Quit this shell")(Opts.unit.map(_ => Quit)),
-    Command("q", "Quit this shell")(Opts.unit.map(_ => Quit)),
-    Command("help", "Display the basic usage of this shell")(Opts.unit.map(_ => Quit)),
-    Command("h", "Display the basic usage of this shell")(Opts.unit.map(_ => Quit)),
+    Command("help", "Display the basic usage of this shell")(Opts.unit.map(_ => Help))
   )
 
   case class BuiltInCommandState[F[_]](requestShutdown: Signal[F, Boolean], commands: NonEmptyList[Command[_]])

@@ -15,8 +15,8 @@ import org.jline.reader.LineReader
 object Fs2JLine {
   // TODO Offer a simpler constructor which doesn't manage the prompt at all
   def apply[F[_] : Concurrent, C, S](availableCommands: NonEmptyList[Command[C]])
-                              (state: F[S], prompt: F[Prompt])
-                              (f: (C, S) => F[(Prompt, S)]): Stream[F, ExitCode] =
+                                    (state: F[S], prompt: F[Prompt])
+                                    (f: (C, S) => F[(Prompt, S)]): Stream[F, ExitCode] =
     new Fs2JLine[F, C, S] {
       override val commands = availableCommands
 
@@ -31,7 +31,7 @@ object Fs2JLine {
   type Prompt = String
 }
 
-abstract class Fs2JLine[F[_]: Concurrent, C, S] {
+abstract class Fs2JLine[F[_] : Concurrent, C, S] {
 
   // Arguments
 
@@ -53,15 +53,22 @@ abstract class Fs2JLine[F[_]: Concurrent, C, S] {
     for {
       // TODO Intercept JLine exception (eg. EndOfFileException or UserInterruptException)
       args <- readLine(p, r)
-      // TODO Integrate the builtins here
+
+      // Find and execute builtins or custom command
       cmd <- findCommand(commands, args)
-      c <- parse(cmd, args.tail)
-      (np, ns) <- Stream.eval(onCommand(c, s)).handleErrorWith { e =>
-        delay(println(s"Error while handling onCommand: $e")) >> Stream.empty
-      }
+      res <- cmd.fold(
+        execCommand(builtins.onBuiltinCommand(_, bics).map(_.asLeft), args.tail),
+        execCommand(onCommand(_, s).map(_.asRight), args.tail)
+      )
+
+      // New state
+      (ns, np, nbics) = res.fold(
+        b => (s, p, b),
+        n => (n._2, n._1, bics)
+      )
       // Looping instead of completing the stream, because if we do complete it then the .repeat combinator
       // doesn't catch it, and thus the overall stream stop.
-      _ <- loop(r, ns, np, bics)
+      _ <- loop(r, ns, np, nbics)
     } yield ()
   } ++ loop(r, s, p, bics) // like the fs2 repeat combinator, but with preserved state
 

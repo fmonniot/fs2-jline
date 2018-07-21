@@ -8,7 +8,7 @@ import eu.monniot.fs2.jline.Fs2JLine.Prompt
 import eu.monniot.fs2.jline.builtins.BuiltInCommandState
 import fs2.Stream
 import fs2.StreamApp.ExitCode
-import org.jline.reader.LineReader
+import org.jline.reader.{EndOfFileException, LineReader, UserInterruptException}
 
 
 object Fs2JLine {
@@ -35,9 +35,15 @@ private[jline] abstract class Fs2JLine[F[_] : Concurrent, C, S] {
   import internal._
 
   def loop(r: LineReader, s: S, p: Prompt, bics: BuiltInCommandState[F]): Stream[F, Unit] = {
+    def quit = Stream.eval(builtins.onBuiltinCommand(builtins.Quit, bics)) >> Stream.empty
+
     for {
-      // TODO Intercept JLine exception (eg. EndOfFileException or UserInterruptException)
-      args <- readLine(p, r)
+      args <- readLine(p, r).recoverWith {
+        case _: EndOfFileException => // ctrl-D
+          quit
+        case _: UserInterruptException => // ctrl-C
+          quit
+      }
 
       // Find and execute builtins or custom command
       cmd <- findCommand(commands, args)

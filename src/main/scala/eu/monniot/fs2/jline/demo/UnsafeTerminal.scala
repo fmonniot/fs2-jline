@@ -1,6 +1,5 @@
-package eu.monniot.fs2.jline
+package eu.monniot.fs2.jline.demo
 
-import java.util
 import java.util.concurrent.atomic.AtomicBoolean
 
 import org.jline.builtins.Completers.{FileNameCompleter, TreeCompleter}
@@ -21,8 +20,7 @@ object UnsafeTerminal {
     TreeCompleter.node("rm")
   )
 
-//  def main(args: Array[String]): Unit = {
-  def main(): Unit = {
+  def apply(): Unit = {
     val terminal = TerminalBuilder.builder()
       .system(true)
       .build()

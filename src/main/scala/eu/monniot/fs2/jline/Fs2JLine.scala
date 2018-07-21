@@ -2,124 +2,72 @@ package eu.monniot.fs2.jline
 
 import cats.data.NonEmptyList
 import cats.effect.Sync
-import com.monovore.decline.{Command, Opts}
-import eu.monniot.fs2.jline.Fs2JLine.builtins
-import eu.monniot.fs2.jline.Fs2JLine.builtins.BuiltInCommand
-import eu.monniot.fs2.jline.SafeTerminal.Add
+import cats.implicits._
+import com.monovore.decline.Command
+import eu.monniot.fs2.jline.Fs2JLine.Prompt
 import fs2.Stream
 import fs2.StreamApp.ExitCode
-import org.jline.reader.{LineReader, LineReaderBuilder}
-import org.jline.terminal.{Terminal, TerminalBuilder}
+import org.jline.reader.LineReader
 
-import scala.concurrent.blocking
 
 object Fs2JLine {
-  def apply[F[_]: Sync, C](availableCommands: NonEmptyList[Command[C]], defaultPrompt: String = ">")
-                           (f: C => Stream[F, Unit]): Stream[F, ExitCode] =
-    new Fs2JLine[F, C] {
+  // TODO Offer a simpler constructor which doesn't manage the prompt at all
+  def apply[F[_] : Sync, C, S](availableCommands: NonEmptyList[Command[C]])
+                              (state: F[S], prompt: F[Prompt])
+                              (f: (C, S) => F[(Prompt, S)]): Stream[F, ExitCode] =
+    new Fs2JLine[F, C, S] {
       override val commands = availableCommands
 
-      override def onCommand(c: C) = f(c)
+      override val initialState = state
 
-      override def prompt = defaultPrompt
-    }.runnableStream
+      override def onCommand(c: C, s: S): F[(Prompt, S)] = f(c, s)
 
+      override val initialPrompt = prompt
+    }.stream
 
-  object builtins {
-
-    sealed trait BuiltInCommand
-
-    case object Quit extends BuiltInCommand
-
-    case object Help extends BuiltInCommand
-
-    val commands: NonEmptyList[Command[BuiltInCommand]] = NonEmptyList.of(
-      Command("quit", "Quit this shell")(Opts.unit.map(_ => Quit)),
-      Command("q", "Quit this shell")(Opts.unit.map(_ => Quit)),
-      Command("help", "Display the basic usage of this shell")(Opts.unit.map(_ => Quit)),
-      Command("help", "Display the basic usage of this shell")(Opts.unit.map(_ => Quit)),
-    )
-
-    def onBuiltinCommand[F[_]](c: BuiltInCommand): Stream[F, Unit] = c match {
-      case builtins.Quit => Stream.empty
-      case builtins.Help => Stream.empty
-    }
-
-  }
+  // Might or might not make sense
+  type Prompt = String
 }
 
-abstract class Fs2JLine[F[_] : Sync, C] {
+abstract class Fs2JLine[F[_] : Sync, C, S] {
+
+  // Arguments
 
   val commands: NonEmptyList[Command[C]]
 
-  def onCommand(c: C): Stream[F, Unit]
+  val initialState: F[S]
 
-  // TODO This should be customizable at runtime.
-  // For example, to display the current directory.
-  def prompt: String
+  val initialPrompt: F[Prompt]
 
-  private def delay[A](a: => A): Stream[F, A] =
-    Stream.eval(Sync[F].delay(a))
+  // Function
 
-  // TODO This should do something meaningful :)
-  def onBuiltinCommand(c: BuiltInCommand): Stream[F, Unit] = c match {
-    case builtins.Quit => Stream.empty
-    case builtins.Help => Stream.empty
-  }
+  def onCommand(c: C, s: S): F[(Prompt, S)]
 
-  val terminal: Stream[F, Terminal] = delay(TerminalBuilder.builder()
-    .system(true)
-    .build())
+  // Loop and Stream conversion
 
-  def reader(terminal: Terminal): Stream[F, LineReader] = delay(LineReaderBuilder.builder()
-    .appName("testing")
-    .terminal(terminal)
-    .build())
+  import internal._
 
-  def readLine(reader: LineReader): Stream[F, NonEmptyList[String]] =
-    Stream.eval(Sync[F].delay(blocking(reader.readLine(prompt))))
-      .flatMap { line =>
-        NonEmptyList.fromList(line.split(" ").toList) match {
-          case None => Stream.empty
-          case Some(nel) => Stream.emit(nel)
-        }
+  def loop(r: LineReader, s: S, p: Prompt): Stream[F, Unit] = {
+    for {
+      args <- readLine(p, r)
+      cmd <- findCommand(commands, args)
+      c <- parse(cmd, args.tail)
+      (np, ns) <- Stream.eval(onCommand(c, s)).handleErrorWith { e =>
+        delay(println(s"Error while handling onCommand: $e")) >> Stream.empty
       }
+      // Looping instead of completing the stream, because if we do complete it then the .repeat combinator
+      // doesn't catch it, and thus the overall stream stop.
+      _ <- loop(r, ns, np)
+    } yield ()
+  } ++ loop(r, s, p) // like t
 
-  // TODO This should return a Stream[F, Either[Command[Builtin.Cmd], Command[C]]] instead
-  def findCommand(line: NonEmptyList[String]): Stream[F, Command[C]] = {
-    commands.find(_.name == line.head) match {
-      case None =>
-        delay(println(s"Unknown command ${line.head}")) >> Stream.empty
-      case Some(cmd) => Stream.emit(cmd)
-    }
-  }
-
-  def parse(cmd: Command[C], args: List[String]): Stream[F, C] = {
-    cmd.parse(args).fold(
-      error => delay(println(error)) >> Stream.empty,
-      c => Stream.emit(c)
-    )
-  }
-
-  def loop(r: LineReader): Stream[F, Unit] = for {
-    args <- readLine(r)
-    cmd <- findCommand(args)
-    c <- parse(cmd, args.tail)
-    _ <- onCommand(c).handleErrorWith { e =>
-      // TODO Rm side-effect
-      println(s"Error while handling onCommand: $e")
-      Stream.empty
-    }
-    // Looping instead of completing the stream, because if we do complete it then the .repeat combinator
-    // doesn't catch it, and thus the overall stream stop.
-    _ <- loop(r)
-  } yield ()
-
-  def runnableStream: Stream[F, ExitCode] = {
+  def stream: Stream[F, ExitCode] = {
     for {
       t <- terminal
       r <- reader(t)
-      _ <- loop(r).repeat
+      s <- Stream.eval(initialState)
+      p <- Stream.eval(initialPrompt)
+      _ <- loop(r, s, p)
     } yield ExitCode.Success
   }
 

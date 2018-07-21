@@ -32,5 +32,6 @@ lazy val `fs2-jline` = (project in file("."))
       "org.scalacheck"  %% "scalacheck"          % ScalaCheckVersion % Test
     ),
     mainClass in assembly := Some("eu.monniot.fs2.jline.SafeTerminal"),
+    addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.2.4")
   )
 

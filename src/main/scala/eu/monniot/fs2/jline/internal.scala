@@ -32,7 +32,8 @@ private[jline] object internal {
         }
       }
 
-  def findCommand[F[_]: Sync, C](commands: NonEmptyList[Command[C]], line: NonEmptyList[String]): Stream[F, Command[C]] = {
+  def findCommand[F[_]: Sync, C](commands: NonEmptyList[Command[C]],
+                                 line: NonEmptyList[String]): Stream[F, Command[C]] = {
     commands.find(_.name == line.head) match {
       case None =>
         delay(println(s"Unknown command ${line.head}")) >> Stream.empty

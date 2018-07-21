@@ -1,18 +1,20 @@
 package eu.monniot.fs2.jline
 
 import cats.data.NonEmptyList
-import cats.effect.Sync
+import cats.effect.Concurrent
 import cats.implicits._
 import com.monovore.decline.Command
 import eu.monniot.fs2.jline.Fs2JLine.Prompt
+import eu.monniot.fs2.jline.builtins.BuiltInCommandState
 import fs2.Stream
 import fs2.StreamApp.ExitCode
 import org.jline.reader.LineReader
 
 
+// TODO Use package object instead
 object Fs2JLine {
   // TODO Offer a simpler constructor which doesn't manage the prompt at all
-  def apply[F[_] : Sync, C, S](availableCommands: NonEmptyList[Command[C]])
+  def apply[F[_] : Concurrent, C, S](availableCommands: NonEmptyList[Command[C]])
                               (state: F[S], prompt: F[Prompt])
                               (f: (C, S) => F[(Prompt, S)]): Stream[F, ExitCode] =
     new Fs2JLine[F, C, S] {
@@ -29,7 +31,7 @@ object Fs2JLine {
   type Prompt = String
 }
 
-abstract class Fs2JLine[F[_] : Sync, C, S] {
+abstract class Fs2JLine[F[_]: Concurrent, C, S] {
 
   // Arguments
 
@@ -47,9 +49,11 @@ abstract class Fs2JLine[F[_] : Sync, C, S] {
 
   import internal._
 
-  def loop(r: LineReader, s: S, p: Prompt): Stream[F, Unit] = {
+  def loop(r: LineReader, s: S, p: Prompt, bics: BuiltInCommandState[F]): Stream[F, Unit] = {
     for {
+      // TODO Intercept JLine exception (eg. EndOfFileException or UserInterruptException)
       args <- readLine(p, r)
+      // TODO Integrate the builtins here
       cmd <- findCommand(commands, args)
       c <- parse(cmd, args.tail)
       (np, ns) <- Stream.eval(onCommand(c, s)).handleErrorWith { e =>
@@ -57,9 +61,9 @@ abstract class Fs2JLine[F[_] : Sync, C, S] {
       }
       // Looping instead of completing the stream, because if we do complete it then the .repeat combinator
       // doesn't catch it, and thus the overall stream stop.
-      _ <- loop(r, ns, np)
+      _ <- loop(r, ns, np, bics)
     } yield ()
-  } ++ loop(r, s, p) // like t
+  } ++ loop(r, s, p, bics) // like the fs2 repeat combinator, but with preserved state
 
   def stream: Stream[F, ExitCode] = {
     for {
@@ -67,7 +71,8 @@ abstract class Fs2JLine[F[_] : Sync, C, S] {
       r <- reader(t)
       s <- Stream.eval(initialState)
       p <- Stream.eval(initialPrompt)
-      _ <- loop(r, s, p)
+      bics <- Stream.eval(builtins.initialBuiltInState(commands))
+      _ <- loop(r, s, p, bics).interruptWhen(bics.requestShutdown)
     } yield ExitCode.Success
   }
 

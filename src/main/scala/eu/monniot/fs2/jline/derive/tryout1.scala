@@ -3,8 +3,9 @@ package eu.monniot.fs2.jline.derive
 import cats.implicits._
 import cats.data.NonEmptyList
 import com.monovore.decline.{Command, Opts}
-import shapeless.{::, CNil, HList, HNil, LabelledGeneric, Lazy, Witness}
-import shapeless.labelled.FieldType
+import shapeless.{::, CNil, HList, HNil, LabelledGeneric, Lazy, Witness, tag}
+import shapeless.labelled._
+import shapeless.syntax.singleton._
 
 
 /* First try based on a type class derivation thing.
@@ -19,42 +20,33 @@ object tryout1 {
   implicit val addCommand: Opts[Add.type] = ???
   implicit val rmCommand: Opts[Rm.type] = ???
 
-  implicit val cNilCommand: NonEmptyList[Command[CNil]] = ???
+  implicit val hNilCommand: Opts[HNil] = Opts.unit.map(_ => HNil)
 
-  implicit val hNilCommand: Opts[HNil] = Opts.never
+  implicit def booleanOpts[K <: Symbol](implicit witness: Witness.Aux[K]): Opts[FieldType[K, Boolean]] = {
+    // Here we need to define multiple function based on the type A
+    // ie. one for boolean, one for list, and so on. For now we only have Boolean in our example
 
-  //  implicit def hListEncoder[H, T <: HList](implicit hEncoder: Opts[H],
-  //                                           tEncoder: Opts[T]
-  //                                          ): Opts[H :: T] = {
-  //    (hEncoder, tEncoder).mapN { case (h, t) => h :: t }
-  //  }
+    val name = witness.value.name
+    Opts.flag(name, name).orFalse.map(b => field[K](b))
+  }
 
-  implicit def hListObjectEncoder[K <: Symbol, H, T <: HList](implicit
-                                                              witness: Witness.Aux[K],
-                                                              hEncoder: Lazy[Opts[FieldType[K, H]]],
-                                                              tEncoder: Opts[T]
-                                                             ): Opts[FieldType[K, H] :: T] = {
-    val fieldName: String = witness.value.name
-
+  implicit def hListOpts[K <: Symbol, H, T <: HList](implicit
+                                                     hEncoder: Lazy[Opts[FieldType[K, H]]],
+                                                     tEncoder: Opts[T]
+                                                    ): Opts[FieldType[K, H] :: T] = {
     (hEncoder.value, tEncoder).mapN { case (h, t) =>
       h :: t
     }
   }
 
-  trait Thing[A] {
-
-  }
-
-  implicit def genericObjectEncoder[A, H <: HList](implicit generic: LabelledGeneric.Aux[A, H]): Thing[A] = {
-
-    println(generic)
-
-    new Thing[A] {}
+  implicit def genericOpts[A, H <: HList](implicit generic: LabelledGeneric.Aux[A, H],
+                                          opts: Opts[H]): Opts[A] = {
+    opts.map(h => generic.from(h))
   }
 
   LabelledGeneric[Ls]
 
-  implicit val optsBoolean: Opts[Boolean] = ???
+  val long = 'long ->> true
 
   implicitly[Thing[Ls]]
 

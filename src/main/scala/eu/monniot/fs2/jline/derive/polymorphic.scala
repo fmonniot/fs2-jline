@@ -43,6 +43,7 @@ object polymorphic {
   }
 
   val ls = Ls(long = true, human = true)
+  val optsHNil: Opts[HNil] = Opts.unit.map(_ => HNil)
 
   // TODO From now on, we should be able to abstract the Ls type
 
@@ -52,8 +53,6 @@ object polymorphic {
   // TODO Here we have lost the field labels, and thus we will need a standard Generic[Ls] later on
   // See if we can keep the label here to not require both Generic kind.
   val gen2 = lhlist.map(mapper)
-
-  val optsHNil: Opts[HNil] = Opts.unit.map(_ => HNil)
 
   val optsHList: Opts[Boolean :: Boolean :: HNil] = gen2.foldLeft(optsHNil)(folder)
 

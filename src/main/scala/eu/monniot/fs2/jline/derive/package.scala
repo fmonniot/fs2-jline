@@ -13,26 +13,10 @@ package object derive {
   // [ ] We should follow case-app convention, as it seems to be a well known library.
   // [ ] And this include the usage of annotations
 
-  def command[T: MkCoOpts]: Opts[T] = {
-    val make = MkCoOpts[T]
+  def command[T: MkCoOpts]: Opts[T] =
+    MkCoOpts[T].coOpts.opts
 
-    make.coOpts.opts
-  }
-
-  def commands[T: MkCommands]: Option[NonEmptyList[Command[T]]] = {
-    val commands = MkCommands[T]
-
-    NonEmptyList.fromList(commands)
-  }
-
-  // ADT for exploration
-
-  sealed trait Cmd
-
-  case class Ls(long: Boolean, human: Boolean) extends Cmd
-
-  case object Add extends Cmd
-
-  case object Rm extends Cmd
+  def commands[T: MkCommands]: Option[NonEmptyList[Command[T]]] =
+    NonEmptyList.fromList(MkCommands[T])
 
 }

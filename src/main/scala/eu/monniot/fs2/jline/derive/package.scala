@@ -1,30 +1,17 @@
 package eu.monniot.fs2.jline
 
+import cats.data.NonEmptyList
 import cats.implicits._
-import com.monovore.decline.Opts
-import shapeless.LabelledGeneric
+import com.monovore.decline.{Command, Opts}
 
 package object derive {
 
-  // Given a root product, create a Command[_]
-  // Given a root coproduct, create a NonEmptyList[Command[_]]
-  // For non-root coproduct, create subcommands
+  // [x] Given a root product, create a Command[_]
+  // [x] Given a root coproduct, create a NonEmptyList[Command[_]]
+  // [ ] For non-root coproduct, create sub commands
 
-  // We should follow case-app convention, as it seems to be a well known library.
-
-
-  sealed trait Cmd
-
-  object Cmd {
-
-    case class Ls(long: Boolean, human: Boolean) extends Cmd
-
-    case object Add extends Cmd
-
-    case object Rm extends Cmd
-
-  }
-
+  // [ ] We should follow case-app convention, as it seems to be a well known library.
+  // [ ] And this include the usage of annotations
 
   def command[T: MkCoOpts]: Opts[T] = {
     val make = MkCoOpts[T]
@@ -32,11 +19,20 @@ package object derive {
     make.coOpts.opts
   }
 
-  //  def rootCommands[T: MkRootCommands]: NonEmptyList[Opts[T]] = MkRootCommands[T].commands
+  def commands[T: MkCommands]: Option[NonEmptyList[Command[T]]] = {
+    val commands = MkCommands[T]
 
-  //  val rc = rootCommands[Cmd]
+    NonEmptyList.fromList(commands)
+  }
 
-  val gen = LabelledGeneric[Cmd]
-  val test = MkCommands[Cmd].types
+  // ADT for exploration
+
+  sealed trait Cmd
+
+  case class Ls(long: Boolean, human: Boolean) extends Cmd
+
+  case object Add extends Cmd
+
+  case object Rm extends Cmd
 
 }

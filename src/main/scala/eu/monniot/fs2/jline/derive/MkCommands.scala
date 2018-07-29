@@ -1,51 +1,34 @@
 package eu.monniot.fs2.jline.derive
 
-import com.monovore.decline.{Command, Opts}
-import shapeless.{:+:, CNil, Coproduct, LabelledGeneric, Witness}
-import shapeless.labelled.{FieldType, field}
+import com.monovore.decline.Command
+import shapeless.{:+:, CNil, Coproduct, LabelledGeneric}
 
-trait BuildRootCommand[A] {
-  def c: Command[A]
+
+trait MkCommands[T] {
+  protected def commands: List[Any]
 }
-
-object BuildRootCommand {
-
-  implicit def cocommand[K <: Symbol, A](implicit witness: Witness.Aux[K]): BuildRootCommand[FieldType[K,A]] = {
-
-    val name = witness.value.name
-    // This one should be implicit via MkCoOpts
-    val opts: Opts[A] = Opts.never.map(identity)
-    val opts2: Opts[FieldType[K, A]] = opts.map(a => field[K](a))
-
-    new BuildRootCommand[FieldType[K, A]] {
-      def c = Command(name, name)(opts2)
-    }
-  }
-}
-
-trait MkCommands[T] { def types: List[Any] }
 
 object MkCommands {
-  def apply[T](implicit mkCommands: MkCommands[T]) = mkCommands
+
+  // We don't expose the unsafe MkCommands' types field
+  def apply[T](implicit mkCommands: MkCommands[T]): List[Command[T]] =
+    mkCommands.commands.asInstanceOf[List[Command[T]]]
 
   implicit def caseCNil: MkCommands[CNil] = new MkCommands[CNil] {
-    def types: List[Any] = Nil
+    def commands: List[Any] = Nil
   }
 
-  implicit def caseCCons[H, T <: Coproduct]
-  (implicit
-   rec: MkCommands[T]
-   , br: BuildRootCommand[H]
-  ): MkCommands[H :+: T] =
+  implicit def caseCCons[H, T <: Coproduct](implicit tail: MkCommands[T],
+                                            mk: MkCommand[H]): MkCommands[H :+: T] =
     new MkCommands[H :+: T] {
-      def types: List[Any] = br.c :: rec.types
+      def commands: List[Any] = mk.cmd :: tail.commands
     }
 
-  implicit def genericCoproduct[A, C <: Coproduct](implicit gen: LabelledGeneric.Aux[A, C]
-                                                    , iterate: MkCommands[C]
-                                                   ): MkCommands[A] =
+  implicit def genericCoproduct[A, C <: Coproduct](implicit gen: LabelledGeneric.Aux[A, C],
+                                                   iterate: MkCommands[C]
+                                                  ): MkCommands[A] =
     new MkCommands[A] {
-      override def types: List[Any] = iterate.types
+      override def commands: List[Any] = iterate.commands
     }
 
 }

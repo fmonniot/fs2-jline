@@ -2,6 +2,7 @@ package eu.monniot.fs2.jline.derive
 
 import cats.implicits._
 import com.monovore.decline.Opts
+import eu.monniot.fs2.jline.derive.Cmd.Ls
 import shapeless.Witness
 import shapeless.labelled.{FieldType, field}
 

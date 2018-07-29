@@ -1,6 +1,7 @@
 package eu.monniot.fs2.jline.derive
 
 import com.monovore.decline.{Command, Opts}
+import eu.monniot.fs2.jline.derive.Cmd.Ls
 import shapeless._
 import shapeless.labelled.FieldType
 

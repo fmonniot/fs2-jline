@@ -27,6 +27,7 @@ lazy val `fs2-jline` = (project in file("."))
 
       "org.jline"       %  "jline"               % "3.9.0",
       "com.monovore"    %% "decline"             % "0.4.2",
+      "com.chuusai"     %% "shapeless"           % "2.3.3",
 
       "org.scalatest"   %% "scalatest"           % ScalaTestVersion  % Test,
       "org.scalacheck"  %% "scalacheck"          % ScalaCheckVersion % Test
